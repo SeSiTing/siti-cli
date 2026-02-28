@@ -6,11 +6,13 @@
 #   current: 显示当前配置
 #   list: 列出所有服务商
 #   test: 测试当前配置
+#   unset: 清除环境变量（切换到 OAuth 登录模式）
 # 用法:
 #   siti ai switch <provider> [--persist]    切换到指定服务商（默认临时，加 --persist 持久化）
 #   siti ai current                          显示当前配置
 #   siti ai list                             列出所有服务商
 #   siti ai test                             测试当前配置
+#   siti ai unset [--persist]                清除环境变量（切换到 OAuth 登录模式）
 
 ZSHRC="$HOME/.zshrc"
 
@@ -181,25 +183,71 @@ switch_provider() {
 # 测试当前配置
 test_config() {
   echo "🔍 测试 AI API 配置..."
-  
+
   if [ -z "$ANTHROPIC_BASE_URL" ]; then
     echo "❌ ANTHROPIC_BASE_URL 未设置"
     echo "请运行 'source ~/.zshrc' 或重新打开终端"
     exit 1
   fi
-  
+
   if [ -z "$ANTHROPIC_AUTH_TOKEN" ]; then
     echo "❌ ANTHROPIC_AUTH_TOKEN 未设置"
     echo "请运行 'source ~/.zshrc' 或重新打开终端"
     exit 1
   fi
-  
+
   echo "  ✅ BASE_URL: $ANTHROPIC_BASE_URL"
   echo "  ✅ AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:0:20}..."
   echo ""
   echo "配置已加载，可以正常使用"
-  
+
   exit 0
+}
+
+# 清除环境变量（切换到 OAuth 登录模式）
+unset_env() {
+  local persist_flag="$1"
+
+  # 检测 shell wrapper 是否已配置
+  if ! grep -q "# siti shell wrapper" "$ZSHRC" 2>/dev/null; then
+    echo "⚠️  检测到 shell wrapper 未配置，清除后不会在当前终端生效" >&2
+    echo "" >&2
+    echo "请运行以下命令配置 shell wrapper（仅需一次）：" >&2
+    echo "  eval \"\$(siti init zsh)\" >> ~/.zshrc" >&2
+    echo "  source ~/.zshrc" >&2
+    echo "" >&2
+    read -p "是否继续（仅持久化到 ~/.zshrc）？[y/N] " response
+    if [[ ! "$response" =~ ^[yY]$ ]]; then
+      echo "已取消" >&2
+      exit 1
+    fi
+  fi
+
+  # 需要清除的变量列表
+  local vars=("ANTHROPIC_AUTH_TOKEN" "ANTHROPIC_API_KEY" "ANTHROPIC_BASE_URL")
+
+  # 持久模式：修改 ~/.zshrc
+  if [[ "$persist_flag" == "--persist" ]]; then
+    for var in "${vars[@]}"; do
+      # 使用 sed 注释掉相关配置行
+      sed -i.tmp -E "s|^export ${var}=.*|# export ${var} # 已清除|" "$ZSHRC"
+    done
+    rm -f "${ZSHRC}.tmp"
+
+    echo "echo '✅ 已清除环境变量 [下次打开终端自动生效]';"
+  fi
+
+  # 输出 unset 命令（临时模式和持久模式都输出，供当前 shell 立即生效）
+  for var in "${vars[@]}"; do
+    echo "unset ${var};"
+  done
+
+  if [[ "$persist_flag" != "--persist" ]]; then
+    echo "echo '✅ 已清除环境变量 [仅当前终端有效]';"
+  fi
+  echo "echo '👉 提示: 运行 \"claude login\" 切换到 OAuth 登录模式';"
+
+  exit 10  # 退出码 10 表示需要 eval
 }
 
 # 主逻辑
@@ -216,12 +264,21 @@ case "$1" in
   test)
     test_config
     ;;
+  unset)
+    # 支持 --persist 和 -p 两种形式
+    local persist_flag="$2"
+    if [[ "$persist_flag" == "-p" ]]; then
+      persist_flag="--persist"
+    fi
+    unset_env "$persist_flag"
+    ;;
   ""|--help|-h)
     echo "用法:"
     echo "  siti ai switch <provider> [--persist]  切换 AI 服务商"
     echo "  siti ai current                        显示当前配置"
     echo "  siti ai list                           列出所有服务商"
     echo "  siti ai test                           测试当前配置"
+    echo "  siti ai unset [--persist]              清除环境变量（切换到 OAuth 登录模式）"
     echo ""
     echo "选项:"
     echo "  --persist    持久化切换（修改 ~/.zshrc，下次打开终端自动生效）"
@@ -238,6 +295,8 @@ case "$1" in
     echo "  siti ai switch minimax          # 临时切换到 MiniMax（仅当前终端）"
     echo "  siti ai switch zhipu --persist  # 持久化切换到智谱（修改 zshrc）"
     echo "  siti ai current                 # 查看当前配置"
+    echo "  siti ai unset                   # 清除环境变量（临时，切回 OAuth 登录）"
+    echo "  siti ai unset --persist         # 清除环境变量（持久化）"
     exit 0
     ;;
   *)

@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.4] - 2026-03-01
+
+### Added
+- `siti ai unset`: 新增清除环境变量命令，用于切换到 OAuth 登录模式
+  - `siti ai unset`: 临时清除（仅当前终端生效）
+  - `siti ai unset --persist` 或 `siti ai unset -p`: 持久化清除（修改 ~/.zshrc）
+  - 清除变量：ANTHROPIC_AUTH_TOKEN、ANTHROPIC_API_KEY、ANTHROPIC_BASE_URL
+  - 支持 shell wrapper 检测，未配置时会有提示
+
 ## [1.2.3] - 2026-02-02
 
 ### Fixed

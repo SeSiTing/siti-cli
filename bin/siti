@@ -5,7 +5,7 @@
 # 版本: 1.2.3
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION="1.2.3"
+VERSION="1.2.4"
 
 # 检测安装方式并设置命令目录
 detect_installation_type() {
