@@ -8,7 +8,7 @@
 #   test: 测试当前配置
 #   unset: 清除环境变量（切换到 OAuth 登录模式）
 # 用法:
-#   siti ai switch <provider> [--persist] [-y]    切换（-y 跳过 wrapper 未配置时的确认）
+#   siti ai switch <provider> [--persist]    切换到指定服务商（默认临时，加 --persist 持久化）
 #   siti ai current                          显示当前配置
 #   siti ai list                             列出所有服务商
 #   siti ai test                             测试当前配置
@@ -50,8 +50,20 @@ list_providers() {
       # 转换为小写显示
       provider_lower=$(echo "$provider" | tr '[:upper:]' '[:lower:]')
       
-      # 检查是否为当前使用的（^export 排除注释行，\$ 转义供 grep 按字面量匹配）
-      if grep -qE "^export ANTHROPIC_BASE_URL=\"\\\$${provider}_BASE_URL\"" "$ZSHRC" 2>/dev/null; then
+      # 检查是否为当前使用的：
+      # 1. 先看环境变量实际值是否匹配（当前 shell 已切换）
+      # 2. 再看 ~/.zshrc 中的间接引用（持久化配置）
+      local is_current=false
+      if [ -n "$ANTHROPIC_BASE_URL" ] && [ "$ANTHROPIC_BASE_URL" = "$url" ]; then
+        is_current=true
+      elif grep -qE "^export ANTHROPIC_BASE_URL=\"\\\$${provider}_BASE_URL\"" "$ZSHRC" 2>/dev/null; then
+        # zshrc 中有间接引用，且当前环境变量未覆盖时才标记
+        if [ -z "$ANTHROPIC_BASE_URL" ]; then
+          is_current=true
+        fi
+      fi
+
+      if [ "$is_current" = true ]; then
         printf "  • %-15s %s ← 当前\n" "$provider_lower" "$url"
       else
         printf "  • %-15s %s\n" "$provider_lower" "$url"
@@ -98,11 +110,10 @@ show_current() {
 
 # 切换服务商
 switch_provider() {
-  local provider persist_flag auto_yes
+  local provider persist_flag
   for arg in "$@"; do
     case "$arg" in
       --persist|-p) persist_flag="--persist" ;;
-      -y|--yes) auto_yes=1 ;;
       *) [ -z "$provider" ] && provider="$arg"
     esac
   done
@@ -114,16 +125,7 @@ switch_provider() {
     echo "请运行以下命令配置 shell wrapper（仅需一次）：" >&2
     echo "  eval \"\$(siti init zsh)\" >> ~/.zshrc" >&2
     echo "  source ~/.zshrc" >&2
-    echo "" >&2
-    if [[ -n "$auto_yes" ]]; then
-      :  # -y 时跳过确认，继续执行
-    elif [[ -t 0 ]]; then
-      read -p "是否继续（仅持久化到 ~/.zshrc）？[y/N] " response
-      [[ "$response" =~ ^[yY]$ ]] || { echo "已取消" >&2; exit 1; }
-    else
-      echo "非交互式终端，已跳过。加 -y 可跳过确认" >&2
-      exit 1
-    fi
+    exit 1
   fi
   
   if [ -z "$provider" ]; then
@@ -255,14 +257,7 @@ unset_env() {
     echo "请运行以下命令配置 shell wrapper（仅需一次）：" >&2
     echo "  eval \"\$(siti init zsh)\" >> ~/.zshrc" >&2
     echo "  source ~/.zshrc" >&2
-    echo "" >&2
-    if [[ -t 0 ]]; then
-      read -p "是否继续（仅持久化到 ~/.zshrc）？[y/N] " response
-      [[ "$response" =~ ^[yY]$ ]] || { echo "已取消" >&2; exit 1; }
-    else
-      echo "非交互式终端，已跳过" >&2
-      exit 1
-    fi
+    exit 1
   fi
 
   # 需要清除的变量列表
@@ -324,7 +319,6 @@ case "$1" in
     echo ""
     echo "选项:"
     echo "  --persist    持久化切换（修改 ~/.zshrc，下次打开终端自动生效）"
-    echo "  -y, --yes    wrapper 未配置时跳过确认（非交互式用）"
     echo "               不加此参数则仅在当前终端临时切换"
     echo ""
     echo "规则:"
