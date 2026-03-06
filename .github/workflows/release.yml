@@ -28,8 +28,17 @@ jobs:
     - name: Calculate SHA256 for GitHub archive
       id: calc_sha
       run: |
-        # 下载 GitHub 自动生成的 archive（这是 Homebrew 实际会下载的）
-        curl -sL "https://github.com/${{ github.repository }}/archive/${{ steps.get_version.outputs.tag }}.tar.gz" -o archive.tar.gz
+        # 等待 GitHub archive CDN 生成（标签刚推送时可能还未就绪）
+        URL="https://github.com/${{ github.repository }}/archive/${{ steps.get_version.outputs.tag }}.tar.gz"
+        for i in 1 2 3 4 5; do
+          curl -sL "$URL" -o archive.tar.gz
+          SIZE=$(stat -c%s archive.tar.gz 2>/dev/null || stat -f%z archive.tar.gz)
+          if [ "$SIZE" -gt 1024 ]; then
+            break
+          fi
+          echo "⏳ archive 未就绪，等待 10s（第 $i 次）..."
+          sleep 10
+        done
         SHA256=$(sha256sum archive.tar.gz | cut -d' ' -f1)
         echo "sha256=$SHA256" >> $GITHUB_OUTPUT
         echo "📦 Archive SHA256: $SHA256"
@@ -49,10 +58,12 @@ jobs:
         git config --local user.name "github-actions[bot]"
         git add Formula/siti-cli.rb
         git commit -m "chore(formula): update to ${{ steps.get_version.outputs.tag }}"
+        # 拉取最新再推，避免并发推送冲突
+        git pull --rebase origin main
         git push origin HEAD:main
         
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         generate_release_notes: true
         body: |
