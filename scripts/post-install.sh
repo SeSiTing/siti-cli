@@ -29,36 +29,25 @@ USER_COMMANDS_DIR="$HOME/.siti-cli/commands"
 EOF
 fi
 
-# 配置 shell 补全与 wrapper：macOS 默认 zsh，优先 .zshrc；否则按 $SHELL
-# 若 .zshrc 存在则优先使用（多数 Mac 用户），避免 brew 从 bash 子进程运行导致写错文件
-if [ -f "$HOME/.zshrc" ] || [ ! -f "$HOME/.bashrc" ]; then
-  SHELL_RC="$HOME/.zshrc"
-else
-  SHELL_RC="$HOME/.bashrc"
-fi
-
-if ! grep -q "siti-cli completion" "$SHELL_RC" 2>/dev/null; then
-  if touch "$SHELL_RC" 2>/dev/null && cat >> "$SHELL_RC" 2>/dev/null << 'EOF'
+# 补全与 wrapper：先试 .zshrc，失败则 .bashrc
+for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
+  [ "$rc" = "$HOME/.bashrc" ] && [ ! -f "$rc" ] && continue
+  if ! grep -q "siti-cli completion" "$rc" 2>/dev/null; then
+    if (touch "$rc" 2>/dev/null && cat >> "$rc" 2>/dev/null) << 'COMPLETE'
 
 # siti-cli completion
 if command -v siti >/dev/null 2>&1; then
-  if [ -f /opt/homebrew/share/zsh/site-functions/_siti ]; then
-    fpath=(/opt/homebrew/share/zsh/site-functions $fpath)
-  elif [ -f /usr/local/share/zsh/site-functions/_siti ]; then
-    fpath=(/usr/local/share/zsh/site-functions $fpath)
-  fi
+  [ -f /opt/homebrew/share/zsh/site-functions/_siti ] && fpath=(/opt/homebrew/share/zsh/site-functions $fpath)
+  [ -f /usr/local/share/zsh/site-functions/_siti ] && fpath=(/usr/local/share/zsh/site-functions $fpath)
 fi
-EOF
-  then
-    echo "✅ Shell 补全配置已添加"
-  else
-    echo "⚠️  无法写入 $SHELL_RC，请手动配置补全" >&2
+COMPLETE
+    then echo "✅ Shell 补全已添加到 $rc"; break
+    fi
+  else echo "✅ Shell 补全已存在"; break
   fi
-else
-  echo "✅ Shell 补全配置已存在"
-fi
+done
 
-# 创建示例命令（仅当目录为空或不存在 hello.sh 时）
+# 示例命令
 if [ ! -f "$SITI_DIR/commands/hello.sh" ]; then
   cat > "$SITI_DIR/commands/hello.sh" << 'EOF'
 #!/bin/bash
@@ -70,41 +59,16 @@ EOF
   echo "✅ 已创建示例命令 hello"
 fi
 
-# 自动安装 shell wrapper（尝试写入，失败则静默跳过）
-WRAPPER_MARKER="# siti shell wrapper - auto-generated"
-if ! grep -q "$WRAPPER_MARKER" "$SHELL_RC" 2>/dev/null; then
-  if touch "$SHELL_RC" 2>/dev/null && cat >> "$SHELL_RC" 2>/dev/null << 'WRAPPER_EOF'
-
-# siti shell wrapper - auto-generated
-# 使需要修改环境变量的命令（如 proxy、ai）在当前终端立即生效
-siti() {
-  local output
-  local exit_code
-  output=$(command siti "$@" 2>&1)
-  exit_code=$?
-  if [ $exit_code -eq 10 ]; then
-    eval "$output"
-    return 0
-  else
-    echo "$output"
-    return $exit_code
+# Wrapper：用 siti init 输出，单一数据源；先 .zshrc 再 .bashrc
+for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
+  [ "$rc" = "$HOME/.bashrc" ] && [ ! -f "$rc" ] && continue
+  grep -q "siti shell wrapper" "$rc" 2>/dev/null && { echo "✅ Shell wrapper 已存在"; break; }
+  if touch "$rc" 2>/dev/null && { printf '\n'; command siti init zsh 2>/dev/null; } >> "$rc" 2>/dev/null; then
+    echo "✅ Shell wrapper 已安装到 $rc（siti ai switch、siti proxy 将在当前终端生效）"; break
   fi
-}
-WRAPPER_EOF
-  then
-    echo "✅ Shell wrapper 已安装（siti ai、siti proxy 等命令将在当前终端生效）"
-  else
-    echo "⚠️  无法写入 $SHELL_RC，请手动运行: eval \"\$(siti init zsh)\" >> $SHELL_RC" >&2
-  fi
-else
-  echo "✅ Shell wrapper 已存在，跳过安装"
-fi
+  [ "$rc" = "$HOME/.bashrc" ] && echo "⚠️  无法写入 rc 文件，请运行: eval \"\$(siti init zsh)\" >> ~/.zshrc && source ~/.zshrc" >&2
+done
 
-echo "✅ siti-cli 初始化完成！"
 echo ""
-echo "用户数据目录: $SITI_DIR"
-echo "如果自动配置失败，请手动运行："
-echo "  eval \"\$(siti init zsh)\" >> ~/.zshrc"
-echo "  source ~/.zshrc"
-echo ""
-echo "运行 'siti --help' 查看所有命令"
+echo "✅ 初始化完成，用户数据: $SITI_DIR"
+echo "运行 'siti --help' 查看命令"
