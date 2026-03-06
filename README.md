@@ -18,15 +18,12 @@ curl -fsSL https://raw.githubusercontent.com/SeSiTing/homebrew-siti-cli/main/ins
 **或：Homebrew**
 
 ```bash
-# 首次安装（完整命令，包含 tap 和 install）
+# 方式一：一行搞定（自动 tap）
 brew install SeSiTing/siti-cli/siti-cli
-```
 
-> **为什么不能只用 `brew tap SeSiTing/siti-cli && brew install siti-cli`？**
->
-> `brew tap` 只是添加仓库索引，`brew install siti-cli` 会在所有已添加的 tap 里搜索同名包。
-> 如果官方 Homebrew core 或其他 tap 里恰好也有叫 `siti-cli` 的包，会产生冲突或装错。
-> 使用完整路径 `SeSiTing/siti-cli/siti-cli` 可以明确指定来源，避免歧义。
+# 方式二：分步执行
+brew tap SeSiTing/siti-cli && brew install siti-cli
+```
 
 已安装过的用户更新：
 
