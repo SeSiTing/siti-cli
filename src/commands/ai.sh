@@ -200,26 +200,24 @@ switch_provider() {
     # 删除临时文件
     rm -f "${ZSHRC}.tmp"
 
-    echo "echo '✅ 已持久化切换到 $provider [下次打开终端自动生效]';"
+    echo "✅ 已持久化切换到 $provider [下次打开终端自动生效]" >&2
   fi
 
-  # 输出 export 命令（临时模式和持久模式都输出，供当前 shell 立即生效）
+  # 输出 export 命令（stdout 仅含可 eval 的 shell 语句）
   echo "export ANTHROPIC_BASE_URL=\"\$${provider_upper}_BASE_URL\";"
   echo "export ANTHROPIC_AUTH_TOKEN=\"${auth_token_ref}\";"
 
-  # 处理 ANTHROPIC_MODEL
   if [ "$has_model_def" = true ]; then
     echo "export ANTHROPIC_MODEL=\"${model_ref}\";"
   else
-    # 如果没有对应 model 定义，但之前有设置 ANTHROPIC_MODEL 则清除
     echo "if [ -n \"\$ANTHROPIC_MODEL\" ]; then unset ANTHROPIC_MODEL; fi;"
   fi
 
   if [[ "$persist_flag" != "--persist" ]]; then
-    echo "echo '✅ 已切换到 $provider [仅当前终端有效]';"
+    echo "✅ 已切换到 $provider [仅当前终端有效]" >&2
   fi
 
-  exit 10  # 退出码 10 表示需要 eval
+  exit 10
 }
 
 # 测试当前配置
@@ -274,17 +272,16 @@ unset_env() {
     echo "echo '✅ 已清除环境变量 [下次打开终端自动生效]';"
   fi
 
-  # 输出 unset 命令（临时模式和持久模式都输出，供当前 shell 立即生效）
   for var in "${vars[@]}"; do
     echo "unset ${var};"
   done
 
   if [[ "$persist_flag" != "--persist" ]]; then
-    echo "echo '✅ 已清除环境变量 [仅当前终端有效]';"
+    echo "✅ 已清除环境变量 [仅当前终端有效]" >&2
   fi
-  echo "echo '👉 提示: 运行 \"claude login\" 切换到 OAuth 登录模式';"
+  echo "👉 提示: 运行 \"claude login\" 切换到 OAuth 登录模式" >&2
 
-  exit 10  # 退出码 10 表示需要 eval
+  exit 10
 }
 
 # 主逻辑

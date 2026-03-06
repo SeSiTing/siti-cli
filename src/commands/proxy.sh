@@ -26,16 +26,16 @@ enable_proxy() {
   echo "export HTTPS_PROXY='http://${PROXY_HOST}:${PROXY_PORT}';"
   echo "export all_proxy='socks5://${PROXY_HOST}:${PROXY_PORT}';"
   echo "export ALL_PROXY='socks5://${PROXY_HOST}:${PROXY_PORT}';"
-  echo "echo '✅ 终端代理已开启 (${PROXY_HOST}:${PROXY_PORT})';"
-  exit 10  # 退出码 10 表示需要 eval
+  echo "✅ 终端代理已开启 (${PROXY_HOST}:${PROXY_PORT})" >&2
+  exit 10
 }
 
 disable_proxy() {
   echo "unset http_proxy HTTP_PROXY;"
   echo "unset https_proxy HTTPS_PROXY;"
   echo "unset all_proxy ALL_PROXY;"
-  echo "echo '🚫 终端代理已关闭';"
-  exit 10  # 退出码 10 表示需要 eval
+  echo "🚫 终端代理已关闭" >&2
+  exit 10
 }
 
 check_proxy() {
