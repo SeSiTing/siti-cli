@@ -22,10 +22,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 1. 修改 `bin/siti` 中的 `VERSION` 变量
 2. 更新 `CHANGELOG.md`
-3. 推送 git tag（如 `v1.2.5`），GitHub Actions 自动：
-   - 计算 archive SHA256
-   - 更新 `Formula/siti-cli.rb`（url + sha256）
-   - 创建 GitHub Release
+3. 推送 main 分支，GitHub Actions（Publish on Version Bump）自动：
+   - 计算 archive SHA256 → 更新 `Formula/siti-cli.rb`
+   - 打 tag 并创建 GitHub Release
+
+若 tag 已存在但漏发 Release：Actions → Release from Tag → Run workflow，填写 tag 名（如 v1.2.7）
 
 ## 架构
 

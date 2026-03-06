@@ -1,12 +1,12 @@
-name: Auto Tag
+# main 上版本号变更时：更新 Formula → 打 tag → 创建 Release（一体化流水线）
+name: Publish on Version Bump
 
 on:
   push:
     branches: [main]
 
 jobs:
-  auto-tag:
-    # 跳过 bot 提交，避免循环触发
+  publish:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     permissions:
@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Extract version
+      - name: Extract version from bin/siti
         id: version
         run: |
           VERSION=$(grep '^VERSION=' bin/siti | head -1 | cut -d'"' -f2)
@@ -29,7 +29,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "当前代码版本: v$VERSION"
 
-      - name: Check if tag exists
+      - name: Check if tag already exists
         id: check_tag
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -42,7 +42,7 @@ jobs:
             echo "标签 v$VERSION 不存在，准备创建"
           fi
 
-      - name: Create temp tag to generate archive
+      - name: Push temp tag for archive URL
         if: steps.check_tag.outputs.exists == 'false'
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -51,7 +51,7 @@ jobs:
           git tag "_tmp_v$VERSION"
           git push origin "_tmp_v$VERSION"
 
-      - name: Calculate SHA256
+      - name: Compute archive SHA256
         if: steps.check_tag.outputs.exists == 'false'
         id: calc_sha
         env:
@@ -71,7 +71,7 @@ jobs:
           echo "sha256=$SHA256" >> $GITHUB_OUTPUT
           echo "📦 SHA256: $SHA256"
 
-      - name: Update Formula and create real tag
+      - name: Update Formula, commit, push tag
         if: steps.check_tag.outputs.exists == 'false'
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -100,3 +100,24 @@ jobs:
           git push origin --delete "_tmp_v$VERSION"
 
           echo "✅ 标签 v$VERSION 创建成功（Formula sha256 已包含）"
+
+      - name: Create Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          body: |
+            ## 安装 / 更新
+
+            ```bash
+            # 新用户安装
+            brew tap ${{ github.repository_owner }}/siti-cli
+            brew install siti-cli
+
+            # 已有用户更新
+            brew update
+            brew upgrade siti-cli
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
