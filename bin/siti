@@ -4,7 +4,7 @@
 # 作者: siti
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION="1.2.22"
+VERSION="1.2.23"
 
 # 检测安装方式并设置命令目录
 detect_installation_type() {
@@ -250,9 +250,8 @@ run_command() {
     chmod +x "$script_path"
   fi
   
-  # 执行脚本（统一使用 source）
-  source "$script_path" "$@"
-  return $?
+  # 执行脚本（直接执行，保留实时输出）
+  exec "$script_path" "$@"
 }
 
 # 自动安装 shell wrapper（首次运行时）
