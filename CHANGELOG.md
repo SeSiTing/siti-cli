@@ -43,14 +43,7 @@ export MINIMAX_API_KEY="your-api-key"
 - `siti ai switch ali` → 设置 `ANTHROPIC_MODEL=$ALI_MODEL`
 - `siti ai switch zhipu` → 清除 `ANTHROPIC_MODEL`
 
-## [1.2.4] - 2026-03-01
-
-### Added
-- `siti ai unset`: 新增清除环境变量命令，用于切换到 OAuth 登录模式
-  - `siti ai unset`: 临时清除（仅当前终端生效）
-  - `siti ai unset --persist` 或 `siti ai unset -p`: 持久化清除（修改 ~/.zshrc）
-  - 清除变量：ANTHROPIC_AUTH_TOKEN、ANTHROPIC_API_KEY、ANTHROPIC_BASE_URL、5个模型变量
-  - 支持 shell wrapper 检测，未配置时会有提示
+## [1.2.25] - 2026-03-22
 
 ### Enhanced
 - `siti ai switch`: 智能管理 ANTHROPIC 模型变量
@@ -64,6 +57,15 @@ export MINIMAX_API_KEY="your-api-key"
   - 支持临时切换和持久化切换（`--persist`）
 - `siti ai current`: 显示当前配置时包含 5 个模型变量的值
 - `siti ai unset`: 清除环境变量时包含 5 个模型变量
+
+## [1.2.4] - 2026-03-01
+
+### Added
+- `siti ai unset`: 新增清除环境变量命令，用于切换到 OAuth 登录模式
+  - `siti ai unset`: 临时清除（仅当前终端生效）
+  - `siti ai unset --persist` 或 `siti ai unset -p`: 持久化清除（修改 ~/.zshrc）
+  - 清除变量：ANTHROPIC_AUTH_TOKEN、ANTHROPIC_API_KEY、ANTHROPIC_BASE_URL
+  - 支持 shell wrapper 检测，未配置时会有提示
 
 ## [1.2.3] - 2026-02-02
 
