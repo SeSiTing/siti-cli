@@ -50,8 +50,10 @@ list_providers() {
       # 转换为小写显示
       provider_lower=$(echo "$provider" | tr '[:upper:]' '[:lower:]')
       
-      # 检查是否为当前使用的（^export 排除注释行，\$ 转义供 grep 按字面量匹配）
-      if grep -qE "^export ANTHROPIC_BASE_URL=\"\\\$${provider}_BASE_URL\"" "$ZSHRC" 2>/dev/null; then
+      # 优先用环境变量判断当前（反映临时切换），其次查 zshrc（持久配置）
+      if [ -n "$ANTHROPIC_BASE_URL" ] && [ "$ANTHROPIC_BASE_URL" = "$url" ]; then
+        printf "  • %-15s %s ← 当前\n" "$provider_lower" "$url"
+      elif [ -z "$ANTHROPIC_BASE_URL" ] && grep -qE "^export ANTHROPIC_BASE_URL=\"\\\$${provider}_BASE_URL\"" "$ZSHRC" 2>/dev/null; then
         printf "  • %-15s %s ← 当前\n" "$provider_lower" "$url"
       else
         printf "  • %-15s %s\n" "$provider_lower" "$url"
@@ -64,52 +66,51 @@ list_providers() {
 # 显示当前配置
 show_current() {
   echo "当前 AI API 配置:"
-  
-  # 从 ~/.zshrc 读取当前配置
-  local base_url_line=$(grep '^export ANTHROPIC_BASE_URL=' "$ZSHRC" 2>/dev/null | tail -1)
-  local auth_token_line=$(grep '^export ANTHROPIC_AUTH_TOKEN=' "$ZSHRC" 2>/dev/null | tail -1)
-  
-  if [ -n "$base_url_line" ]; then
-    # 提取引用的变量名
-    local provider_var=$(echo "$base_url_line" | sed -E 's/.*"\$([A-Z0-9_]+)_BASE_URL".*/\1/')
-    if [ -n "$provider_var" ]; then
-      local provider=$(echo "$provider_var" | tr '[:upper:]' '[:lower:]')
-      echo "  服务商: $provider"
-      
-      # 显示实际的 URL（如果环境变量已加载）
-      if [ -n "$ANTHROPIC_BASE_URL" ]; then
-        echo "  BASE_URL: $ANTHROPIC_BASE_URL"
+
+  # 优先从当前环境变量读取（反映临时切换）
+  if [ -n "$ANTHROPIC_BASE_URL" ]; then
+    # 尝试从 zshrc 反向查找服务商名称（匹配 URL）
+    local provider_name=""
+    while IFS= read -r line; do
+      local pvar purl
+      pvar=$(echo "$line" | sed -E 's/export ([A-Z0-9_]+)_BASE_URL=.*/\1/')
+      purl=$(echo "$line" | sed -E 's/.*="(.*)"/\1/')
+      if [ "$purl" = "$ANTHROPIC_BASE_URL" ]; then
+        provider_name=$(echo "$pvar" | tr '[:upper:]' '[:lower:]')
+        break
       fi
-      
-      # 显示 TOKEN（脱敏）
-      if [ -n "$ANTHROPIC_AUTH_TOKEN" ]; then
-        local token_preview="${ANTHROPIC_AUTH_TOKEN:0:20}"
-        echo "  AUTH_TOKEN: ${token_preview}..."
-      fi
-      
-      # 显示模型配置（5个变量）
-      if [ -n "$ANTHROPIC_MODEL" ]; then
-        echo "  ANTHROPIC_MODEL: $ANTHROPIC_MODEL"
-      fi
-      if [ -n "$ANTHROPIC_DEFAULT_SONNET_MODEL" ]; then
-        echo "  ANTHROPIC_DEFAULT_SONNET_MODEL: $ANTHROPIC_DEFAULT_SONNET_MODEL"
-      fi
-      if [ -n "$ANTHROPIC_DEFAULT_OPUS_MODEL" ]; then
-        echo "  ANTHROPIC_DEFAULT_OPUS_MODEL: $ANTHROPIC_DEFAULT_OPUS_MODEL"
-      fi
-      if [ -n "$ANTHROPIC_DEFAULT_HAIKU_MODEL" ]; then
-        echo "  ANTHROPIC_DEFAULT_HAIKU_MODEL: $ANTHROPIC_DEFAULT_HAIKU_MODEL"
-      fi
-      if [ -n "$ANTHROPIC_REASONING_MODEL" ]; then
-        echo "  ANTHROPIC_REASONING_MODEL: $ANTHROPIC_REASONING_MODEL"
-      fi
-    else
-      echo "  BASE_URL: $(echo "$base_url_line" | sed -E 's/.*="(.*)"/\1/')"
+    done < <(grep -E '^export [A-Z0-9_]+_BASE_URL=' "$ZSHRC" 2>/dev/null | grep -v 'ANTHROPIC_BASE_URL')
+
+    if [ -n "$provider_name" ]; then
+      echo "  服务商: $provider_name"
+    fi
+    echo "  BASE_URL: $ANTHROPIC_BASE_URL"
+
+    if [ -n "$ANTHROPIC_AUTH_TOKEN" ]; then
+      local token_preview="${ANTHROPIC_AUTH_TOKEN:0:20}"
+      echo "  AUTH_TOKEN: ${token_preview}..."
+    fi
+
+    if [ -n "$ANTHROPIC_MODEL" ]; then
+      echo "  ANTHROPIC_MODEL: $ANTHROPIC_MODEL"
+    fi
+    if [ -n "$ANTHROPIC_DEFAULT_SONNET_MODEL" ]; then
+      echo "  ANTHROPIC_DEFAULT_SONNET_MODEL: $ANTHROPIC_DEFAULT_SONNET_MODEL"
+    fi
+    if [ -n "$ANTHROPIC_DEFAULT_OPUS_MODEL" ]; then
+      echo "  ANTHROPIC_DEFAULT_OPUS_MODEL: $ANTHROPIC_DEFAULT_OPUS_MODEL"
+    fi
+    if [ -n "$ANTHROPIC_DEFAULT_HAIKU_MODEL" ]; then
+      echo "  ANTHROPIC_DEFAULT_HAIKU_MODEL: $ANTHROPIC_DEFAULT_HAIKU_MODEL"
+    fi
+    if [ -n "$ANTHROPIC_REASONING_MODEL" ]; then
+      echo "  ANTHROPIC_REASONING_MODEL: $ANTHROPIC_REASONING_MODEL"
     fi
   else
-    echo "  ❌ 未配置"
+    echo "  ❌ 未配置（ANTHROPIC_BASE_URL 未设置）"
+    echo "  提示: 运行 'source ~/.zshrc' 或重新打开终端"
   fi
-  
+
   exit 0
 }
 
@@ -206,7 +207,7 @@ switch_provider() {
     # 删除临时文件
     rm -f "${ZSHRC}.tmp"
     
-    echo "echo '✅ 已持久化切换到 $provider [下次打开终端自动生效]';"
+    echo "✅ 已持久化切换到 $provider [下次打开终端自动生效]" >&2
   fi
   
   # 输出 export 命令（临时模式和持久模式都输出，供当前 shell 立即生效）
@@ -229,7 +230,7 @@ switch_provider() {
   fi
   
   if [[ "$persist_flag" != "--persist" ]]; then
-    echo "echo '✅ 已切换到 $provider [仅当前终端有效]';"
+    echo "✅ 已切换到 $provider [仅当前终端有效]" >&2
   fi
   
   exit 10  # 退出码 10 表示需要 eval
@@ -289,7 +290,7 @@ unset_env() {
     done
     rm -f "${ZSHRC}.tmp"
 
-    echo "echo '✅ 已清除环境变量 [下次打开终端自动生效]';"
+    echo "✅ 已清除环境变量 [下次打开终端自动生效]" >&2
   fi
 
   # 输出 unset 命令（临时模式和持久模式都输出，供当前 shell 立即生效）
@@ -298,9 +299,9 @@ unset_env() {
   done
 
   if [[ "$persist_flag" != "--persist" ]]; then
-    echo "echo '✅ 已清除环境变量 [仅当前终端有效]';"
+    echo "✅ 已清除环境变量 [仅当前终端有效]" >&2
   fi
-  echo "echo '👉 提示: 运行 \"claude login\" 切换到 OAuth 登录模式';"
+  echo "👉 提示: 运行 \"claude login\" 切换到 OAuth 登录模式" >&2
 
   exit 10  # 退出码 10 表示需要 eval
 }
