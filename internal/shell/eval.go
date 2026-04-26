@@ -1,15 +1,18 @@
 // Package shell provides helpers for generating shell statements that the
 // parent shell wrapper will eval (exit-code-10 protocol).
 //
-// Usage:
+// These helpers are pure string builders. They are queued by `cmd.Eval(c, ...)`
+// (see cmd/root.go), which stores them in the per-invocation buffer attached
+// to the cobra context. cmd.Execute() prints the buffer to stdout and exits
+// with code 10 after the command returns nil.
 //
-//	func (c *cobra.Command, args []string) error {
-//	    cmd.Eval(c, shell.Export("http_proxy", "http://127.0.0.1:7890"))
-//	    return nil
-//	}
+// Example (from cmd/proxy.go):
 //
-// cmd.Eval() stores lines into the cobra context; cmd.Execute() emits them to
-// stdout and returns exit code 10 after the command succeeds.
+//	cmd.Eval(c,
+//	    shell.Export("http_proxy",  "http://127.0.0.1:7890"),
+//	    shell.Export("HTTPS_PROXY", "http://127.0.0.1:7890"),
+//	)
+//	return nil
 package shell
 
 import "fmt"

@@ -4,9 +4,10 @@ project_name: siti-cli
 
 before:
   hooks:
-    - go mod tidy
-    # Auto-generate completions before build (requires the binary to compile first,
-    # but goreleaser runs hooks before builds, so we use go run)
+    # Use download (not tidy) — tidy mutates go.mod/go.sum which would diverge
+    # from what's committed. Local devs run `make tidy` before pushing.
+    - go mod download
+    # Regenerate completions from cobra so the archive always ships current ones.
     - sh -c 'mkdir -p completions && go run . completion zsh > completions/_siti && go run . completion bash > completions/siti.bash'
 
 builds:

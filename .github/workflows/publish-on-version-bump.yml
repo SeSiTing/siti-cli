@@ -1,4 +1,12 @@
-# Push to main → detect version bump in version.go → goreleaser creates tag + release + Formula update
+# Push to main → detect version bump in version.go → create git tag → goreleaser
+#
+# Flow:
+#   1. Extract numeric version from `var version = "X.Y.Z"` (skip if "dev").
+#   2. If tag vX.Y.Z does not exist, create and push it.
+#   3. Run goreleaser, which reads the tag and produces:
+#        - cross-compiled binaries (darwin/linux × amd64/arm64)
+#        - GitHub release with checksums
+#        - Homebrew Formula update committed to this same tap repo
 name: Publish on Version Bump
 
 on:
@@ -7,7 +15,7 @@ on:
 
 jobs:
   publish:
-    # Skip bot commits to avoid infinite loops
+    # Skip bot commits (goreleaser pushes Formula updates as github-actions[bot])
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     permissions:
@@ -28,11 +36,11 @@ jobs:
         run: |
           VERSION=$(grep -oP '(?<=var version = ")[0-9]+\.[0-9]+\.[0-9]+' version.go || true)
           if [ -z "$VERSION" ]; then
-            echo "version.go contains 'dev' or non-semver value — skipping release."
-            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "version.go has 'dev' or non-semver — nothing to release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
           else
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "Detected version: v$VERSION"
           fi
 
@@ -43,12 +51,22 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           if git ls-remote --tags origin "refs/tags/v$VERSION" | grep -q .; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Tag v$VERSION already exists — skipping."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag v$VERSION already exists — skipping release."
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Tag v$VERSION does not exist — proceeding with release."
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
+
+      # goreleaser requires the tag to exist on HEAD. Create and push it first.
+      - name: Create and push tag
+        if: steps.version.outputs.skip == 'false' && steps.check_tag.outputs.exists == 'false'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "v$VERSION"
 
       - name: Run goreleaser
         if: steps.version.outputs.skip == 'false' && steps.check_tag.outputs.exists == 'false'
@@ -58,4 +76,6 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PAT with `contents: write` to push Formula updates to this tap repo.
+          # See README — must be set in repo Secrets.
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

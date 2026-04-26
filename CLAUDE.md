@@ -1,115 +1,192 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文件是项目对所有 AI 编码助手的**唯一真源**（Codex/Cursor/Aider/Copilot 通过 [AGENTS.md](./AGENTS.md) 指向这里）。
+人类开发者也应优先读本文件再动手。
+
+---
 
 ## 项目概述
 
-`siti-cli` 是一个 macOS/Linux 个人命令行工具集，用 Go + Cobra 实现，通过 Homebrew 或 goreleaser 发布。
-支持 AI API 配置切换、代理管理、端口管理、网络检测等功能。
+`siti-cli` 是一个 macOS / Linux 个人命令行工具集，Go + Cobra 实现，通过 Homebrew tap 分发，由 goreleaser 自动发布。
+功能：AI 服务商切换、终端代理开关、端口清理、网络检测、IP 查看、日志清理、Homebrew 升级。
 
-## 开发模式运行
+## 技术栈
 
-在源码目录中直接运行（开发模式）：
+| 领域 | 选型 |
+|---|---|
+| 语言 | Go 1.24+ |
+| CLI 框架 | [spf13/cobra](https://github.com/spf13/cobra) |
+| 交互 UI | [charmbracelet/huh](https://github.com/charmbracelet/huh)（Charm 系，活跃） |
+| 配置发现 | 直接解析 `~/.zshenv` 和 `~/.zshrc`（不引入 toml/yaml） |
+| 测试 | 标准库 `testing` + golden 文件 snapshot |
+| 发布 | [goreleaser](https://goreleaser.com/) — 交叉编译 + Formula 自动更新 |
+
+## 开发流程
 
 ```bash
-go run . --help
-go run . ai list
-go run . proxy check
+make help          # 列出所有命令
+make build         # 构建到 ./siti
+make test          # go test -race -count=1 ./...
+make tidy          # go mod tidy + 校验未漂移
+make snapshot      # 本地 goreleaser dry-run
+go run . ai list   # 直接跑某个命令
 ```
 
-或先编译再运行：
-
-```bash
-go build -o siti .
-./siti ai switch
-```
+源码改完直接 `go run .` 验证；不需要先构建。
 
 ## 版本发布流程
 
-1. 修改 `version.go` 中的 `version` 变量（e.g. `"2.1.0"`）
-2. 更新 `CHANGELOG.md`
-3. 推送 main 分支，GitHub Actions（Publish on Version Bump）自动：
-   - 检测版本号变更 → 调用 goreleaser → 交叉编译 → 打 tag → 创建 Release → 更新 Formula
+1. 修改 `version.go` 中的 `var version = "X.Y.Z"`（去掉 "dev"，填实际版本号）
+2. 更新 `CHANGELOG.md`，加一段 ISO 日期 + 版本号
+3. push 到 `main` 分支
 
-若 tag 已存在但漏发 Release：Actions → Release from Tag → Run workflow，填写 tag 名（如 `v2.1.0`）
+GitHub Actions 自动：
+- 从 `version.go` 提取版本 → 创建 `vX.Y.Z` tag → push
+- goreleaser 用该 tag 交叉编译（darwin/linux × amd64/arm64）
+- 上传 GitHub Release + checksums + 自动更新 `Formula/siti-cli.rb`
+
+补救：tag 已存在但 release 漏发 → Actions → "Release from Tag" → 手动跑。
+
+**所需 secrets**（仓库 Settings → Secrets and variables → Actions）：
+- `HOMEBREW_TAP_TOKEN`：fine-grained PAT，对本仓库 contents: write 权限（同仓库其实 GITHUB_TOKEN 也够，留 PAT 是为了将来分离 tap）
 
 ## 架构
 
-### 技术栈
+### 核心机制：exit-10 协议
 
-- **语言**: Go 1.24+
-- **CLI 框架**: [cobra](https://github.com/spf13/cobra)
-- **交互 UI**: [charmbracelet/huh](https://github.com/charmbracelet/huh)
-- **发布**: [goreleaser](https://goreleaser.com/)
-
-### 核心机制：EvalDirective + Shell Wrapper
-
-部分命令（`ai switch`、`proxy on/off`）需要修改**调用方** shell 的环境变量。由于子进程无法修改父进程环境，采用以下协议：
-
-1. Go 命令函数 `return shell.Eval(...)` — 返回一个实现了 `error` 接口的 `*EvalDirective`
-2. `cmd/root.go` 的 `Execute()` 检测到该类型后，将 shell 语句打印到 stdout，以退出码 10 退出
-3. Shell wrapper（通过 `siti init zsh` 安装并 source）检测到退出码 10，对 stdout 执行 `eval`，然后 `return 0`
+部分命令（`ai switch`、`proxy on/off`、`ai unset`）需要修改**调用方**父 shell 的环境变量。
+子进程没法改父进程环境，所以约定：
 
 ```
 用户运行: siti proxy on
-→ wrapper 捕获 stdout + exit code
-→ exit code=10 → eval stdout → 当前 shell 环境变量被修改 → return 0
-→ exit code≠10 → 直接打印 stdout/stderr → return exit code
+  ↓
+shell 函数 wrapper（由 `siti init zsh` 输出 + 用户 source）
+  ↓ 调用真正的二进制并捕获 stdout / stderr / exit code
+binary: cmd/proxy.go RunE
+  ↓ 通过 cmd.Eval(c, shell.Export(...)) 把 shell 语句存入 context buffer
+  ↓ return nil
+cmd/root.go Execute()
+  ↓ 检测 buffer 非空 → 打印到 stdout → return 10 → main.go os.Exit(10)
+wrapper 看到 exit 10
+  ↓ eval stdout（信任契约，不做白名单过滤）
+  ↓ stderr 透传给用户
+  ↓ return 0   ← 关键：让 `siti ai switch && echo ok` 正常工作
 ```
+
+设计要点：
+- `EvalBuffer` **不实现 error 接口**——eval 通道与 error 通道解耦
+- wrapper **不 grep 过滤** stdout——Go 端是单一真源
+- `os.Exit` 在全项目**只出现一次**（`main.go`）
+- stderr 永远是给人看的，stdout 在 exit 10 时永远是 shell 代码
 
 ### 目录结构
 
 ```
-main.go               # 入口：os.Exit(cmd.Execute(version))
-version.go            # var version = "dev"（ldflags 注入）
-cmd/
-  root.go             # rootCmd + Execute() + EvalDirective 处理
-  ai.go               # siti ai switch/list/current/test/unset
-  proxy.go            # siti proxy on/off/check
-  initcmd.go          # siti init zsh|bash|fish
-  upgrade.go          # siti upgrade
-  killports.go        # siti killports [ports/--dev/--db/...]
-  brewup.go           # siti brewup
-  netcheck.go         # siti netcheck
-  ipshow.go           # siti ipshow
-  cleanlogs.go        # siti cleanlogs
-  util.go             # 公用工具函数
-internal/
-  shell/
-    eval.go           # EvalDirective + Export/Unset/SourceIf 辅助函数
-    wrapper.go        # posixWrapper / fishWrapper 模板字符串
-  config/
-    zshrc.go          # 解析 ~/.zshrc + ~/.zshenv，发现 AI Provider 列表
-Formula/siti-cli.rb   # Homebrew Formula（由 goreleaser CI 自动更新）
-completions/
-  _siti               # zsh 补全（cobra 自动生成）
-  siti.bash           # bash 补全（cobra 自动生成）
-.goreleaser.yml       # 发布配置
+.
+├── main.go                       # os.Exit(cmd.Execute(version))
+├── version.go                    # var version = "dev"（CI 检测 + ldflags 注入双角色）
+├── go.mod / go.sum
+├── Makefile
+├── README.md / CHANGELOG.md / CLAUDE.md / AGENTS.md / LICENSE
+├── .editorconfig / .gitignore / .goreleaser.yml
+│
+├── .github/workflows/
+│   ├── ci.yml                    # PR 检查：build/vet/test/tidy
+│   ├── publish-on-version-bump.yml  # main 推送时自动发版
+│   └── release-from-tag.yml      # 手动补发遗漏的 release
+│
+├── cmd/                          # 命令实现，每个文件一个 namespace
+│   ├── root.go                   # rootCmd + Execute() + Eval(c, lines...)
+│   ├── ai.go                     # siti ai switch/list/current/test/unset
+│   ├── proxy.go                  # siti proxy on/off/check
+│   ├── initcmd.go                # siti init zsh|bash|fish
+│   ├── upgrade.go / killports.go / brewup.go / netcheck.go /
+│   │   ipshow.go / cleanlogs.go
+│   └── util.go                   # 公用工具：lookupEnv / firstNonEmpty
+│
+├── internal/
+│   ├── shell/
+│   │   ├── eval.go               # Export/ExportRef/Unset/SourceIf 字符串 helper
+│   │   ├── eval_test.go
+│   │   ├── wrapper.go            # posixWrapper / fishWrapper 模板
+│   │   ├── wrapper_test.go       # snapshot 测试（-update 刷新 golden）
+│   │   └── testdata/
+│   │       ├── wrapper_zsh.golden
+│   │       └── wrapper_fish.golden
+│   └── config/
+│       ├── zshrc.go              # 解析 ~/.zshenv + ~/.zshrc 发现 Provider
+│       └── zshrc_test.go
+│
+└── completions/                  # cobra 自动生成，goreleaser 也会重新生成
+    ├── _siti
+    └── siti.bash
 ```
+
+故意**不存在**：`bin/`、`src/`、`scripts/`、`docs/`、`Formula/`（goreleaser 写到 tap 仓库的 Formula 目录）。
 
 ### 新增命令规范
 
-在 `cmd/` 下新建 `<命令名>.go`，在 `init()` 中注册到 `rootCmd`：
+在 `cmd/` 下新建 `<name>.go`，模板：
 
 ```go
-var myCmd = &cobra.Command{
-    Use:   "mycmd",
-    Short: "一行描述",
-    RunE: func(cmd *cobra.Command, args []string) error {
-        // 普通输出
-        fmt.Println("结果")
-        return nil
+package cmd
 
-        // 需要修改父 shell 环境变量时：
-        // return shell.Eval(shell.Export("MY_VAR", "value"))
+import (
+    "fmt"
+    "github.com/SeSiTing/siti-cli/internal/shell"
+    "github.com/spf13/cobra"
+)
+
+var fooCmd = &cobra.Command{
+    Use:   "foo",
+    Short: "一行描述",
+    Args:  cobra.NoArgs,
+    RunE: func(c *cobra.Command, args []string) error {
+        // 普通命令：直接 fmt.Println / printErr，return nil
+        fmt.Println("结果")
+
+        // 需要改父 shell 环境时：
+        // Eval(c, shell.Export("FOO", "bar"))
+        // return nil
+        return nil
     },
 }
 
-func init() { rootCmd.AddCommand(myCmd) }
+func init() { rootCmd.AddCommand(fooCmd) }
 ```
 
-### AI 服务商配置
+约定：
+- stdout 给机器读（exit 10 时是 shell 代码，否则是 `siti ai list` 这类纯输出）
+- stderr 给人读（`printErr("✅ 已切换到 %s", name)`）
+- `return nil` 表示成功；返回 error 由 cobra 自动打到 stderr 并以 exit 1 结束
 
-`siti ai` 从 `~/.zshrc` 和 `~/.zshenv` 读取 `*_BASE_URL` 变量自动发现服务商。
-切换时通过 eval 协议修改 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN`（可选 `ANTHROPIC_MODEL`）。
-跳过列表通过 `SITI_AI_SKIP` 变量（逗号分隔大写名称）配置，如 `export SITI_AI_SKIP=AZURE,OPENAI`。
+### AI 服务商发现
+
+`siti ai` 从 `~/.zshenv` 和 `~/.zshrc` 解析：
+
+- `export <NAME>_BASE_URL=...` → 注册 provider `<NAME>`
+- 同名 `<NAME>_API_KEY` → AuthTokenVar；否则回退到 `DEFAULT_AUTH_TOKEN`
+- 同名 `<NAME>_MODEL` → ModelVar（切换时同步设置 5 个 ANTHROPIC_*_MODEL）
+- `SITI_AI_SKIP="A,B,C"` → 跳过列表（环境变量优先于 zshrc 解析）
+- `ANTHROPIC` 前缀本身被忽略（避免循环引用）
+
+切换时只 `eval` 引用：`export ANTHROPIC_BASE_URL="$MINIMAX_BASE_URL"`，token 不落盘到任何 siti 文件。
+
+## 测试规范
+
+- 所有 `internal/` 包**应有测试**
+- `internal/shell/wrapper_test.go` 用 golden 文件做 snapshot；改 wrapper 后跑 `go test ./internal/shell -update` 刷新
+- `cmd/` 层不强求测试（cobra 部分主要靠手动验证）
+- 提交前必跑 `make test && make tidy`
+
+## 编辑约束
+
+- 不要写多行注释块；单行注释只在 *为什么* 不显然时加
+- 不要为"未来需求"写抽象层；删掉就删掉
+- 不要恢复 `EvalDirective` 的 error 接口模式
+- 不要在 wrapper 里加 grep 白名单过滤
+- 不要新增 `bin/` `src/` `scripts/` `docs/` 这些已被删除的目录
+
+## 当前已知技术债
+
+无。上一轮重构清理完毕。

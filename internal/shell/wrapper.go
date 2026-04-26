@@ -35,7 +35,7 @@ siti() {
   exit_code=$?
   if [ $exit_code -eq 10 ]; then
     [ -n "$out" ] && eval "$out"
-    [ -s "$err_file" ] && cat "$err_file"
+    [ -s "$err_file" ] && cat "$err_file" >&2
     rm -f "$err_file"
     return 0
   else
@@ -53,7 +53,7 @@ function siti
   set -l code $status
   if test $code -eq 10
     test -n "$out"; and eval $out
-    test -s $tmp; and cat $tmp
+    test -s $tmp; and cat $tmp >&2
     rm -f $tmp
     return 0
   else
