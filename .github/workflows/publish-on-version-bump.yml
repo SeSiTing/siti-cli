@@ -1,4 +1,4 @@
-# main 上版本号变更时：更新 Formula → 打 tag → 创建 Release（一体化流水线）
+# Push to main → detect version bump in version.go → goreleaser creates tag + release + Formula update
 name: Publish on Version Bump
 
 on:
@@ -7,115 +7,55 @@ on:
 
 jobs:
   publish:
+    # Skip bot commits to avoid infinite loops
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Extract version from bin/siti
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Extract version from version.go
         id: version
         run: |
-          VERSION=$(grep '^VERSION=' bin/siti | head -1 | cut -d'"' -f2)
+          VERSION=$(grep -oP '(?<=var version = ")[0-9]+\.[0-9]+\.[0-9]+' version.go || true)
           if [ -z "$VERSION" ]; then
-            echo "❌ 无法从 bin/siti 提取版本号" >&2
-            exit 1
+            echo "version.go contains 'dev' or non-semver value — skipping release."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "Detected version: v$VERSION"
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "当前代码版本: v$VERSION"
 
       - name: Check if tag already exists
         id: check_tag
+        if: steps.version.outputs.skip == 'false'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          if git ls-remote --tags origin "refs/tags/v$VERSION" | grep -q "refs/tags/v$VERSION"; then
+          if git ls-remote --tags origin "refs/tags/v$VERSION" | grep -q .; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "标签 v$VERSION 已存在，跳过"
+            echo "Tag v$VERSION already exists — skipping."
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "标签 v$VERSION 不存在，准备创建"
+            echo "Tag v$VERSION does not exist — proceeding with release."
           fi
 
-      - name: Push tag for archive
-        if: steps.check_tag.outputs.exists == 'false'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          # 在版本 bump 的 commit 上打正式 tag，保证 archive 与 Formula sha256 一致
-          git tag "v$VERSION"
-          git push origin "v$VERSION"
-
-      - name: Compute archive SHA256
-        if: steps.check_tag.outputs.exists == 'false'
-        id: calc_sha
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          URL="https://github.com/${{ github.repository }}/archive/v${VERSION}.tar.gz"
-          for i in $(seq 1 10); do
-            curl -sL "$URL" -o archive.tar.gz
-            SIZE=$(stat -c%s archive.tar.gz 2>/dev/null || stat -f%z archive.tar.gz)
-            if [ "$SIZE" -gt 1024 ]; then
-              break
-            fi
-            echo "⏳ archive 未就绪，等待 10s（第 $i 次）..."
-            sleep 10
-          done
-          SHA256=$(sha256sum archive.tar.gz | cut -d' ' -f1)
-          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
-          echo "📦 SHA256: $SHA256"
-
-      - name: Update Formula and push
-        if: steps.check_tag.outputs.exists == 'false'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          SHA256: ${{ steps.calc_sha.outputs.sha256 }}
-        run: |
-          URL="https://github.com/${{ github.repository }}/archive/v${VERSION}.tar.gz"
-          # 缺失时插入，存在时替换
-          grep -q 'url "' Formula/siti-cli.rb || sed -i "/homepage /a\\  url \"${URL}\"" Formula/siti-cli.rb
-          grep -q 'sha256 "' Formula/siti-cli.rb || sed -i "/url /a\\  sha256 \"${SHA256}\"" Formula/siti-cli.rb
-          sed -i "s|url \".*\"|url \"${URL}\"|" Formula/siti-cli.rb
-          sed -i "s|sha256 \".*\"|sha256 \"${SHA256}\"|" Formula/siti-cli.rb
-
-          grep -q "v${VERSION}.tar.gz" Formula/siti-cli.rb || { echo "❌ url 更新失败"; exit 1; }
-          grep -q "${SHA256}" Formula/siti-cli.rb || { echo "❌ sha256 更新失败"; exit 1; }
-
-          echo "✅ Formula 已更新"
-          grep -E "url|sha256" Formula/siti-cli.rb
-
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add Formula/siti-cli.rb
-          git commit -m "chore(formula): update to v${VERSION}"
-          git pull --rebase origin main
-          git push origin HEAD:main
-
-          echo "✅ v$VERSION 发布完成"
-
-      - name: Create Release
-        if: steps.check_tag.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
+      - name: Run goreleaser
+        if: steps.version.outputs.skip == 'false' && steps.check_tag.outputs.exists == 'false'
+        uses: goreleaser/goreleaser-action@v6
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          generate_release_notes: true
-          body: |
-            ## 安装 / 更新
-
-            ```bash
-            # 新用户安装
-            brew tap ${{ github.repository_owner }}/siti-cli
-            brew install siti-cli
-
-            # 已有用户更新
-            brew update
-            brew upgrade siti-cli
-            ```
+          version: latest
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

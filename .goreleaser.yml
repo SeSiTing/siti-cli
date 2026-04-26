@@ -1,0 +1,71 @@
+version: 2
+
+project_name: siti-cli
+
+before:
+  hooks:
+    - go mod tidy
+    # Auto-generate completions before build (requires the binary to compile first,
+    # but goreleaser runs hooks before builds, so we use go run)
+    - sh -c 'mkdir -p completions && go run . completion zsh > completions/_siti && go run . completion bash > completions/siti.bash'
+
+builds:
+  - id: siti
+    binary: siti
+    main: .
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - completions/_siti
+      - completions/siti.bash
+      - README.md
+      - CHANGELOG.md
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+brews:
+  - name: siti-cli
+    # This tap repo must exist: github.com/SeSiTing/homebrew-siti-cli
+    # HOMEBREW_TAP_TOKEN needs write access to that repo.
+    repository:
+      owner: SeSiTing
+      name: homebrew-siti-cli
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/SeSiTing/homebrew-siti-cli"
+    description: "个人命令行工具集"
+    license: "MIT"
+    install: |
+      bin.install "siti"
+      zsh_completion.install "completions/_siti" => "_siti"
+      bash_completion.install "completions/siti.bash" => "siti"
+    caveats: |
+      首次安装后运行以下命令配置 shell wrapper：
+        echo 'eval "$(siti init zsh)"' >> ~/.zshrc
+        source ~/.zshrc
+    test: |
+      assert_match version.to_s, shell_output("#{bin}/siti --version")

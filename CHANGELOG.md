@@ -7,17 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- `siti ai`: 支持从 `~/.zshenv` 和 `~/.zshrc` 双文件读取服务商配置
-  - 新增 `_cat_configs()` 合并读取两个配置文件（zshenv 优先）
-  - 新增 `_find_config_file()` 智能定位变量所在的配置文件
-  - 持久化切换（`--persist`）时自动修改变量所在的配置文件
-  - `unset --persist` 时逐变量定位并注释，避免误改无关文件
-
 ### Changed
-- style: 改进 ai 命令提示信息的格式（provider 后添加空格）
-- refactor: 优化脚本执行方式，改为 exec 保留命令实时输出
-- refactor: 优化 shell wrapper 和 ai 命令显示逻辑
+- 🔄 全面重构为 Go + Cobra 实现，移除所有 shell 脚本
+  - 从 `bin/siti` + `src/commands/*.sh` 迁移到 `main.go` + `cmd/*.go`
+  - 新增 `internal/shell/` 实现 EvalDirective + shell wrapper 机制
+  - 新增 `internal/config/` 统一管理配置读取
+  - 新增 `.goreleaser.yml` 替代手动 Formula 管理
+  - 移除 `scripts/` 下所有辅助 shell 脚本
+  - 更新 GitHub Actions CI/CD 流程适配 Go 编译
+
+### Added
+- 🏗️ 引入 `EvalDirective` 模式处理父 shell 环境变量修改
+  - 命令函数返回 `shell.Eval()` 替代 `os.Exit(10)`
+  - Shell wrapper 检测退出码 10 自动 `eval` stdout
+
+### Removed
+- 删除 `bin/siti` shell 主入口
+- 删除 `scripts/` 下所有 shell 脚本（migrate、post-install、post-uninstall、setup-shell-wrapper）
+- 删除 `Formula/siti-cli.rb`（改为 goreleaser 自动生成）
+- 删除 `src/commands/` 下所有 shell 子命令
 
 ## [1.2.5] - 2026-03-06
 
