@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-04-28 — v2.0.7 · shell wrapper 直通 TTY
+
+- 重写 shell wrapper：子进程直接继承终端（不再重定向 stdout），修复 `siti brew up` 无进度条的问题
+- exit-10 协议改用 `$SITI_EVAL_FILE` 临时文件传递 shell 语句，stdout 不再被 wrapper 捕获
+
 ## 2026-04-28 — v2.0.6 · wrapper 不再捕获 stdout
 
 - 重写 shell wrapper：stdout 重定向到临时文件而非 `$()` 捕获，子进程直接继承 TTY，修复 `siti brew up` 无进度条的问题

@@ -51,8 +51,23 @@ func Execute(ver string) int {
 	}
 
 	if len(buf.lines) > 0 {
-		for _, line := range buf.lines {
-			fmt.Println(line)
+		// When SITI_EVAL_FILE is set (by the shell wrapper), write shell
+		// statements there so child processes can inherit the real TTY on stdout.
+		// When not set (no wrapper / direct invocation), fall back to stdout.
+		if evalFile := os.Getenv("SITI_EVAL_FILE"); evalFile != "" {
+			data := []byte{}
+			for _, line := range buf.lines {
+				data = append(data, line...)
+				data = append(data, '\n')
+			}
+			if err := os.WriteFile(evalFile, data, 0o600); err != nil {
+				fmt.Fprintf(os.Stderr, "✗ write eval file: %v\n", err)
+				return 1
+			}
+		} else {
+			for _, line := range buf.lines {
+				fmt.Println(line)
+			}
 		}
 		return 10
 	}
