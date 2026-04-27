@@ -52,10 +52,9 @@ var proxyOffCmd = &cobra.Command{
 	},
 }
 
-var proxyCheckCmd = &cobra.Command{
-	Use:     "check",
-	Aliases: []string{"status"},
-	Short:   "检查当前代理状态",
+var proxyStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "查看当前代理状态",
 	Args:    cobra.NoArgs,
 	Run: func(c *cobra.Command, args []string) {
 		httpVal := firstNonEmpty(
@@ -88,6 +87,6 @@ var proxyCheckCmd = &cobra.Command{
 }
 
 func init() {
-	proxyCmd.AddCommand(proxyOnCmd, proxyOffCmd, proxyCheckCmd)
+	proxyCmd.AddCommand(proxyOnCmd, proxyOffCmd, proxyStatusCmd)
 	rootCmd.AddCommand(proxyCmd)
 }

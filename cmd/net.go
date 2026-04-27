@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var netcheckCmd = &cobra.Command{
-	Use:   "netcheck",
+var netCmd = &cobra.Command{
+	Use:   "net",
 	Short: "检查网络连接状态（ping baidu/google/github）",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -25,5 +25,5 @@ var netcheckCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(netcheckCmd)
+	rootCmd.AddCommand(netCmd)
 }

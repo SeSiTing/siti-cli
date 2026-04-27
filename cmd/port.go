@@ -33,16 +33,21 @@ var (
 	kpAll       bool
 )
 
-var killportsCmd = &cobra.Command{
-	Use:   "killports [ports...]",
+var portCmd = &cobra.Command{
+	Use:   "port",
+	Short: "端口管理",
+}
+
+var portKillCmd = &cobra.Command{
+	Use:   "kill [ports...]",
 	Short: "释放被占用的端口",
 	Long: `扫描并释放指定端口的占用进程。
 
 端口格式:
-  单个:    siti killports 8080
-  多个:    siti killports 8080 9000
-  范围:    siti killports 3000-3010
-  逗号:    siti killports 3000,5000,8080
+  单个:    siti port kill 8080
+  多个:    siti port kill 8080 9000
+  范围:    siti port kill 3000-3010
+  逗号:    siti port kill 3000,5000,8080
 
 预设组:
   --dev    开发端口 (3000/5173/8080 等)
@@ -142,13 +147,14 @@ var killportsCmd = &cobra.Command{
 }
 
 func init() {
-	killportsCmd.Flags().BoolVar(&kpCheckOnly, "check", false, "仅检查，不终止进程")
-	killportsCmd.Flags().BoolVar(&kpDev, "dev", false, "开发端口预设")
-	killportsCmd.Flags().BoolVar(&kpDB, "db", false, "数据库端口预设")
-	killportsCmd.Flags().BoolVar(&kpWeb, "web", false, "Web 端口预设")
-	killportsCmd.Flags().BoolVar(&kpJava, "java", false, "Java 端口预设 (8080-8090)")
-	killportsCmd.Flags().BoolVar(&kpAll, "all", false, "扫描所有占用端口并逐个确认")
-	rootCmd.AddCommand(killportsCmd)
+	portKillCmd.Flags().BoolVar(&kpCheckOnly, "check", false, "仅检查，不终止进程")
+	portKillCmd.Flags().BoolVar(&kpDev, "dev", false, "开发端口预设")
+	portKillCmd.Flags().BoolVar(&kpDB, "db", false, "数据库端口预设")
+	portKillCmd.Flags().BoolVar(&kpWeb, "web", false, "Web 端口预设")
+	portKillCmd.Flags().BoolVar(&kpJava, "java", false, "Java 端口预设 (8080-8090)")
+	portKillCmd.Flags().BoolVar(&kpAll, "all", false, "扫描所有占用端口并逐个确认")
+	portCmd.AddCommand(portKillCmd)
+	rootCmd.AddCommand(portCmd)
 }
 
 // resolvePorts returns the port list based on flags and arguments.

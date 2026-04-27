@@ -40,21 +40,30 @@ brew uninstall siti-cli # 卸载后手动删除 ~/.zshrc 里的 wrapper 行
 ## 命令一览
 
 ```bash
-siti --help               # 查看所有命令
-siti ai list              # 列出 AI 服务商
-siti ai switch [name]     # 切换 AI 服务商（无参数走交互式选择）
-siti ai current           # 显示当前服务商
-siti ai test              # 测试当前 API 连通性
-siti ai unset             # 清除 ANTHROPIC_* 环境变量
-siti proxy on / off       # 开关终端代理 (127.0.0.1:7890)
-siti proxy check          # 查看当前代理状态
-siti killports 3000 8080  # 释放指定端口（支持 --dev/--db/--web 预设）
-siti brewup               # brew update + upgrade + cleanup 一键
-siti netcheck             # ping baidu/google/github
-siti ipshow               # 显示内网与公网 IP
-siti cleanlogs            # 清理当前目录的 *.log
-siti upgrade              # 升级自身
-siti init zsh|bash|fish   # 输出 shell wrapper
+siti --help                 # 查看所有命令
+siti version                # 显示版本（也可用 -v / --version）
+
+# AI 服务商
+siti ai list                # 列出可用服务商
+siti ai current             # 当前服务商
+siti ai switch [name]       # 切换（无参数交互式选择）
+siti ai test                # 测试当前 API 连通性
+siti ai clear               # 清除 ANTHROPIC_* 变量
+
+# 终端代理 (127.0.0.1:7890)
+siti proxy on / off
+siti proxy status
+
+# 端口 / 网络 / 日志
+siti port kill 3000 8080    # 释放端口（支持 --dev/--db/--web 预设）
+siti net                    # ping baidu/google/github
+siti ip                     # 内网 + 公网 IP
+siti logs clean             # 清理当前目录 *.log
+
+# Homebrew & 自身
+siti brew up                # brew update + upgrade + cleanup 一键
+siti upgrade                # 升级 siti-cli 自身
+siti init zsh|bash|fish     # 输出 shell wrapper
 ```
 
 ## AI 服务商配置

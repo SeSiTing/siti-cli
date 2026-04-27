@@ -12,8 +12,13 @@ import (
 
 var brewupInteractive bool
 
-var brewupCmd = &cobra.Command{
-	Use:   "brewup",
+var brewCmd = &cobra.Command{
+	Use:   "brew",
+	Short: "Homebrew 辅助命令",
+}
+
+var brewUpCmd = &cobra.Command{
+	Use:   "up",
 	Short: "Homebrew 一键升级全流程（update/upgrade/cleanup）",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -82,6 +87,7 @@ var brewupCmd = &cobra.Command{
 }
 
 func init() {
-	brewupCmd.Flags().BoolVarP(&brewupInteractive, "interactive", "i", false, "逐步确认每个步骤")
-	rootCmd.AddCommand(brewupCmd)
+	brewUpCmd.Flags().BoolVarP(&brewupInteractive, "interactive", "i", false, "逐步确认每个步骤")
+	brewCmd.AddCommand(brewUpCmd)
+	rootCmd.AddCommand(brewCmd)
 }

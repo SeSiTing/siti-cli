@@ -253,10 +253,10 @@ var aiTestCmd = &cobra.Command{
 	},
 }
 
-// ── siti ai unset ────────────────────────────────────────────────────────────
+// ── siti ai clear ────────────────────────────────────────────────────────────
 
-var aiUnsetCmd = &cobra.Command{
-	Use:   "unset",
+var aiClearCmd = &cobra.Command{
+	Use:   "clear",
 	Short: "清除 ANTHROPIC_* 环境变量（切换到 OAuth 登录模式）",
 	Args:  cobra.NoArgs,
 	RunE: func(c *cobra.Command, args []string) error {
@@ -277,7 +277,7 @@ var aiUnsetCmd = &cobra.Command{
 }
 
 func init() {
-	aiCmd.AddCommand(aiSwitchCmd, aiListCmd, aiCurrentCmd, aiTestCmd, aiUnsetCmd)
+	aiCmd.AddCommand(aiSwitchCmd, aiListCmd, aiCurrentCmd, aiTestCmd, aiClearCmd)
 	rootCmd.AddCommand(aiCmd)
 }
 

@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-04-27 — v3.0.0 · CLI 命名规范化（Breaking）
+
+**Breaking changes**（无兼容 alias，肌肉记忆需要重建）：
+
+| 旧 | 新 |
+|---|---|
+| `siti ai unset` | `siti ai clear` |
+| `siti proxy check` | `siti proxy status` |
+| `siti ipshow` | `siti ip` |
+| `siti netcheck` | `siti net` |
+| `siti killports 3000` | `siti port kill 3000` |
+| `siti cleanlogs` | `siti logs clean` |
+| `siti brewup` | `siti brew up` |
+
+理由：对齐 gh / kubectl / docker / brew 主流命名（namespace + verb），淘汰 bash 时代的复合词。
+
+**Added**
+
+- `siti version` 子命令（与 `--version` flag 并存，对齐 gh/kubectl/docker/git）
+- `siti ip` 公网 IP 查询：尝试 ipify → ifconfig.me → ipinfo 三个 endpoint，修复旧版 64 字节截断把 HTML 错误页输出成乱码的 bug
+- semver 升级门禁：CI 在版本号变化时校验，patch 自动放行；minor/major 必须 commit message 含 `[minor-bump]` / `[major-bump]`
+- `CLAUDE.md` 明确 AI 助手默认只升 patch 位，minor/major 必须用户授权
+
+**Fixed**
+
+- `publish-on-version-bump.yml` 提取版本号的 grep 误匹配注释里的示例版本，导致 `Invalid format` 错误
+
+---
+
 ## 2026-04-27 — v2.0.1 · Go + Cobra 全面重构
 
 > 注：v2.0.0 因 CI 配置 bug 未实际发布，v2.0.1 为首个生效版本。包含 v2.0.0 全部内容 + workflow 修复（grep 误匹配注释示例 / 新增 semver 升级门禁）。

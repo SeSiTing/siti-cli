@@ -68,7 +68,7 @@ GitHub Actions 自动：
 
 ### 核心机制：exit-10 协议
 
-部分命令（`ai switch`、`proxy on/off`、`ai unset`）需要修改**调用方**父 shell 的环境变量。
+部分命令（`ai switch`、`ai clear`、`proxy on/off`）需要修改**调用方**父 shell 的环境变量。
 子进程没法改父进程环境，所以约定：
 
 ```
@@ -111,11 +111,11 @@ wrapper 看到 exit 10
 │
 ├── cmd/                          # 命令实现，每个文件一个 namespace
 │   ├── root.go                   # rootCmd + Execute() + Eval(c, lines...)
-│   ├── ai.go                     # siti ai switch/list/current/test/unset
-│   ├── proxy.go                  # siti proxy on/off/check
+│   ├── ai.go                     # siti ai switch/list/current/test/clear
+│   ├── proxy.go                  # siti proxy on/off/status
 │   ├── initcmd.go                # siti init zsh|bash|fish
-│   ├── upgrade.go / killports.go / brewup.go / netcheck.go /
-│   │   ipshow.go / cleanlogs.go
+│   ├── version.go                # siti version
+│   ├── ip.go / net.go / port.go / logs.go / brew.go / upgrade.go
 │   └── util.go                   # 公用工具：lookupEnv / firstNonEmpty
 │
 ├── internal/
