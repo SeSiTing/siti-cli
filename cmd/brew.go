@@ -107,34 +107,34 @@ var brewUpCmd = &cobra.Command{
 		}
 		fmt.Println("✓ 完成")
 
-		// Step 2: scan outdated
+		// Step 2: scan outdated (pre-upgrade)
 		fmt.Println("\n→ 扫描待更新 package")
-		scan, err := scanOutdated()
+		before, err := scanOutdated()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "! 扫描失败: %v\n", err)
 			fmt.Println("→ 继续执行升级...")
 		}
 
-		hasUpdates := !scan.isEmpty()
+		hasUpdates := !before.isEmpty()
 
 		if !hasUpdates {
 			fmt.Println("✓ 所有 package 已是最新版本")
 		} else {
 			// Show preview
 			fmt.Println()
-			if len(scan.formula) > 0 {
-				fmt.Printf("  %d formula:\n", len(scan.formula))
-				for _, p := range scan.formula {
+			if len(before.formula) > 0 {
+				fmt.Printf("  %d formula:\n", len(before.formula))
+				for _, p := range before.formula {
 					fmt.Println(outdatedLine(p))
 				}
 			}
-			if len(scan.cask) > 0 {
-				fmt.Printf("  %d cask:\n", len(scan.cask))
-				for _, p := range scan.cask {
+			if len(before.cask) > 0 {
+				fmt.Printf("  %d cask:\n", len(before.cask))
+				for _, p := range before.cask {
 					fmt.Println(outdatedLine(p))
 				}
 			}
-			fmt.Printf("\n  将更新 %s\n", scan.summary())
+			fmt.Printf("\n  将更新 %s\n", before.summary())
 
 			// Interactive confirmation
 			if brewupInteractive {
@@ -164,10 +164,10 @@ var brewUpCmd = &cobra.Command{
 		}
 
 		steps := []stepDef{
-			{"升级所有 formula", !hasUpdates || len(scan.formula) == 0, func() error {
+			{"升级所有 formula", !hasUpdates || len(before.formula) == 0, func() error {
 				return runCmd("brew", "upgrade")
 			}},
-			{"升级所有 cask（--greedy）", !hasUpdates || len(scan.cask) == 0, func() error {
+			{"升级所有 cask（--greedy）", !hasUpdates || len(before.cask) == 0, func() error {
 				return runCmd("brew", "upgrade", "--cask", "--greedy")
 			}},
 			{"删除无用依赖", !hasUpdates, func() error {
@@ -201,6 +201,34 @@ var brewUpCmd = &cobra.Command{
 			}
 		}
 
+		// Post-upgrade scan: determine what was actually upgraded
+		fmt.Println("\n→ 验证更新结果")
+		after, err := scanOutdatedSilent()
+		if err != nil {
+			fmt.Println("↷ 验证扫描失败，使用升级前数据汇总")
+			after = scanResult{} // assume all upgraded
+		}
+		upgraded := diffScan(before, after)
+		if !upgraded.isEmpty() {
+			fmt.Println("✓ 更新完成:")
+			if len(upgraded.formula) > 0 {
+				fmt.Printf("  %d formula:\n", len(upgraded.formula))
+				for _, p := range upgraded.formula {
+					fmt.Printf("    %s  %s → %s\n", p.name, p.oldVer, p.newVer)
+				}
+			}
+			if len(upgraded.cask) > 0 {
+				fmt.Printf("  %d cask:\n", len(upgraded.cask))
+				for _, p := range upgraded.cask {
+					fmt.Printf("    %s  %s → %s\n", p.name, p.oldVer, p.newVer)
+				}
+			}
+		} else if hasUpdates {
+			fmt.Println("✓ 所有 package 已更新")
+		} else {
+			fmt.Println("↷ 无需验证（无待更新项）")
+		}
+
 		// Cleanup
 		fmt.Println("\n→ 清理缓存和旧版本")
 		var cleanupBuf bytes.Buffer
@@ -215,10 +243,17 @@ var brewUpCmd = &cobra.Command{
 		elapsed := time.Since(start).Round(time.Second)
 		fmt.Printf("\n────────────────────────────────────────\n")
 
-		if hasUpdates {
-			fTotal := len(scan.formula)
-			cTotal := len(scan.cask)
-			fmt.Printf("已更新: %d formula + %d cask\n", fTotal, cTotal)
+		if !upgraded.isEmpty() {
+			parts := make([]string, 0, 2)
+			if len(upgraded.formula) > 0 {
+				parts = append(parts, fmt.Sprintf("%d formula", len(upgraded.formula)))
+			}
+			if len(upgraded.cask) > 0 {
+				parts = append(parts, fmt.Sprintf("%d cask", len(upgraded.cask)))
+			}
+			fmt.Printf("已更新: %s\n", strings.Join(parts, " + "))
+		} else if hasUpdates {
+			fmt.Println("! 无 package 被成功更新（可能已跳过或失败）")
 		} else {
 			fmt.Println("无需更新")
 		}
@@ -259,6 +294,48 @@ func scanOutdated() (scanResult, error) {
 	scan.cask = parseOutdated(cBuf.String())
 
 	return scan, nil
+}
+
+// scanOutdatedSilent is like scanOutdated but suppresses stdout (no raw brew output).
+func scanOutdatedSilent() (scanResult, error) {
+	var scan scanResult
+
+	var fBuf bytes.Buffer
+	if err := runCmdOutput(&fBuf, "brew", "outdated", "--verbose"); err != nil {
+		return scan, fmt.Errorf("brew outdated: %w", err)
+	}
+	scan.formula = parseOutdated(fBuf.String())
+
+	var cBuf bytes.Buffer
+	if err := runCmdOutput(&cBuf, "brew", "outdated", "--cask", "--greedy", "--verbose"); err != nil {
+		return scan, fmt.Errorf("brew outdated --cask: %w", err)
+	}
+	scan.cask = parseOutdated(cBuf.String())
+
+	return scan, nil
+}
+
+// diffScan returns packages present in before but absent in after (i.e. successfully upgraded).
+func diffScan(before, after scanResult) scanResult {
+	afterSet := make(map[string]bool)
+	for _, p := range after.formula {
+		afterSet[p.name] = true
+	}
+	for _, p := range after.cask {
+		afterSet[p.name] = true
+	}
+	var diff scanResult
+	for _, p := range before.formula {
+		if !afterSet[p.name] {
+			diff.formula = append(diff.formula, p)
+		}
+	}
+	for _, p := range before.cask {
+		if !afterSet[p.name] {
+			diff.cask = append(diff.cask, p)
+		}
+	}
+	return diff
 }
 
 func init() {

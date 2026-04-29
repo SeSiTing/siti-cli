@@ -105,6 +105,15 @@ func runCmdInTee(dir string, buf *bytes.Buffer, name string, args ...string) err
 	return c.Run()
 }
 
+// runCmdOutput runs a command and captures stdout into buf without printing to terminal.
+func runCmdOutput(buf *bytes.Buffer, name string, args ...string) error {
+	c := exec.Command(name, args...)
+	c.Stdin = os.Stdin
+	c.Stdout = buf
+	c.Stderr = nil
+	return c.Run()
+}
+
 func init() {
 	rootCmd.AddCommand(upgradeCmd)
 }
