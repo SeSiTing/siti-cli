@@ -43,7 +43,7 @@ func sectionBrew() error {
 	}
 
 	fmt.Println("→ brew update")
-	exec.Command("brew", "update").Run()
+	runCmd("brew", "update")
 
 	before, err := scanOutdatedSilent()
 	if err != nil {
@@ -69,15 +69,15 @@ func sectionBrew() error {
 	}
 
 	fmt.Println("\n→ brew upgrade")
-	exec.Command("brew", "upgrade").Run()
+	runCmd("brew", "upgrade")
 
 	if len(before.cask) > 0 {
 		fmt.Println("→ brew upgrade --cask --greedy")
-		exec.Command("brew", "upgrade", "--cask", "--greedy").Run()
+		runCmd("brew", "upgrade", "--cask", "--greedy")
 	}
 
 	fmt.Println("→ brew autoremove + cleanup")
-	exec.Command("brew", "autoremove").Run()
+	runCmd("brew", "autoremove")
 	var buf bytes.Buffer
 	runCmdTee(&buf, "brew", "cleanup", "--prune=all")
 	mb := parseCleanupMB(buf.String())

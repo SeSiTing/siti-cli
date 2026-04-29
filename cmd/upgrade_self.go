@@ -26,12 +26,9 @@ func sectionSelf(cmd *cobra.Command) error {
 	case "homebrew", "":
 		fmt.Println("→ brew upgrade siti-cli")
 		if _, err := exec.LookPath("brew"); err == nil {
-			exec.Command("brew", "update").Run()
+			runCmd("brew", "update")
 		}
-		c := exec.Command("brew", "upgrade", "siti-cli")
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-		if err := c.Run(); err != nil {
+		if err := runCmd("brew", "upgrade", "siti-cli"); err != nil {
 			return err
 		}
 		fmt.Println("✓ done")
