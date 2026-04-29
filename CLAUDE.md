@@ -42,13 +42,25 @@ go run . ai list   # 直接跑某个命令
 
 ### 版本号升级规则（AI 助手必须遵守）
 
-完成任意代码变更后，**默认自动升级 patch 位（z）**，无需用户提醒：
+本项目是 main 分支即发版的一条流（trunk-based）流程：**每次提交都代表一次发版**。
 
-- `2.0.1` → `2.0.2`：bug 修复、文档、重构、测试 — AI 直接改，无需确认
-- `2.0.x` → `2.1.0`：新功能 — **必须用户明确说"升 minor"才能改**
-- `2.x.x` → `3.0.0`：breaking change — **必须用户明确说"升 major"才能改**
+#### 硬性规则
 
-**门禁**：`publish-on-version-bump.yml` 会对比上一个 git tag 与新版本：
+- **每次提交必须升级 patch 位（z）**：`2.0.9` → `2.0.10`，无例外。
+- **AI 只允许升 z**：任何代码变更（bug 修复、重构、文档、测试）都直接 +1，不需要用户提醒或确认。
+- **禁止升 minor / major**：除非用户明确说"升 minor"或"升 major"，否则 AI 不得触碰 x 和 y 位。
+
+#### 提交流程
+
+每次 `git commit` 时，AI 必须在同一批 staged 变更中包含：
+1. `version.go` 中 z +1
+2. `CHANGELOG.md` 中新增对应条目
+
+提交完成后，在输出中追加一行 `→ 版本: vX.Y.Z`，方便用户确认。
+
+#### CI 门禁
+
+`publish-on-version-bump.yml` 会对比上一个 git tag 与新版本：
 - 仅 patch 升级：直接放行
 - minor 升级：要求 commit message 含 `[minor-bump]`
 - major 升级：要求 commit message 含 `[major-bump]`
