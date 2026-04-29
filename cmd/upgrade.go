@@ -10,12 +10,11 @@ import (
 )
 
 var (
-	upgradeSelf   bool
-	upgradeBrew   bool
-	upgradeNpm    bool
-	upgradeGem    bool
-	upgradeAll    bool
-	upgradeDryRun bool
+	upgradeSelf     bool
+	upgradeBrew     bool
+	upgradeNpm      bool
+	upgradeAll      bool
+	upgradeDryRun   bool
 )
 
 var upgradeCmd = &cobra.Command{
@@ -23,13 +22,12 @@ var upgradeCmd = &cobra.Command{
 	Short: "升级 siti-cli 或系统包管理器中的包",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		hasTarget := upgradeSelf || upgradeBrew || upgradeNpm || upgradeGem || upgradeAll
+		hasTarget := upgradeSelf || upgradeBrew || upgradeNpm || upgradeAll
 
 		// Default (no flags): self first, then brew + npm.
 		runSelf := upgradeSelf || upgradeAll || !hasTarget
 		runBrew := upgradeBrew || upgradeAll || !hasTarget
 		runNpm  := upgradeNpm  || upgradeAll || !hasTarget
-		runGem  := upgradeGem  || upgradeAll
 
 		t0 := time.Now()
 		var sections []string
@@ -67,14 +65,6 @@ var upgradeCmd = &cobra.Command{
 			fmt.Println()
 		}
 
-		if runGem {
-			sections = append(sections, "gem")
-			if err := sectionGem(); err != nil {
-				fmt.Fprintf(os.Stderr, "✗ gem: %v\n", err)
-			}
-			fmt.Println()
-		}
-
 		elapsed := time.Since(t0).Round(time.Second)
 		fmt.Printf("→ 完成 (took %s) [%s]\n", elapsed, strings.Join(sections, " + "))
 		return nil
@@ -85,7 +75,6 @@ func init() {
 	upgradeCmd.Flags().BoolVar(&upgradeSelf, "self", false, "仅升级 siti-cli 自身")
 	upgradeCmd.Flags().BoolVar(&upgradeBrew, "brew", false, "仅升级 Homebrew 包")
 	upgradeCmd.Flags().BoolVar(&upgradeNpm, "npm", false, "仅升级 npm 全局包")
-	upgradeCmd.Flags().BoolVar(&upgradeGem, "gem", false, "仅升级 Ruby gem")
 	upgradeCmd.Flags().BoolVar(&upgradeAll, "all", false, "升级所有包管理器（含 self）")
 	upgradeCmd.Flags().BoolVarP(&upgradeDryRun, "dry-run", "n", false, "仅预览，不执行更新")
 	rootCmd.AddCommand(upgradeCmd)

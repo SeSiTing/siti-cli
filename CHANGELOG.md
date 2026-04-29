@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-04-29 — v2.0.18
+
+- `siti upgrade` 完全移除 gem 支持：macOS 系统 Ruby gem 无更新价值且因权限报错，删除 `upgrade_gem.go` 和 `--gem` 标志
+
 ## 2026-04-29 — v2.0.17
 
 - `siti upgrade` 默认流程移除 gem：系统 Ruby 的 gem 无需更新且会因权限报错，保留 `--gem` 标志供手动使用
