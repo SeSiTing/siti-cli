@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-04-29 — v2.0.14
+
+- `siti upgrade` 修复 brew/self 实时日志：裸 `exec.Command().Run()` 吞掉 TTY 输出导致用户看到"卡住"假象，统一改为 `runCmd()` 继承 stdout/stderr
+
 ## 2026-04-29 — v2.0.13
 
 - `siti upgrade` 重构为多包管理器升级命令：默认升级 brew + npm global + gem，新增 `--self` / `--brew` / `--npm` / `--gem` / `--all` / `--dry-run` 标志
