@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-04-29 — v2.0.16
+
+- `siti upgrade` brew section 过滤逻辑完善：使用 `filteredBefore` 进行汇总和 diffScan，确保 siti-cli 不出现在 brew 的统计中
+- brew upgrade 改用 `brew upgrade <names>` 逐个升级公式（排除 siti-cli），不再裸跑无参数
+
 ## 2026-04-29 — v2.0.15
 
 - `siti upgrade` self 永远优先：默认先升 self → brew/npm/gem，self 更新后终止并提示 re-run

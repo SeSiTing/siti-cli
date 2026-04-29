@@ -54,10 +54,6 @@ func sectionBrew() error {
 	if err != nil {
 		return fmt.Errorf("扫描失败: %w", err)
 	}
-	if before.isEmpty() {
-		fmt.Println("✓ 所有 package 已是最新")
-		return nil
-	}
 
 	// Filter out siti-cli from formula (self handles it separately).
 	var formula []pkgInfo
@@ -67,7 +63,9 @@ func sectionBrew() error {
 		}
 	}
 
-	if len(formula) == 0 && len(before.cask) == 0 {
+	// Build filtered before for summary/diff (excludes siti-cli).
+	filteredBefore := scanResult{formula: formula, cask: before.cask}
+	if filteredBefore.isEmpty() {
 		fmt.Println("✓ 所有 package 已是最新")
 		return nil
 	}
@@ -118,7 +116,7 @@ func sectionBrew() error {
 	}
 
 	after, _ := scanOutdatedSilent()
-	upgraded := diffScan(before, after)
+	upgraded := diffScan(filteredBefore, after)
 	if !upgraded.isEmpty() {
 		fmt.Printf("✓ 已更新 %s\n", upgraded.summary())
 	} else {
